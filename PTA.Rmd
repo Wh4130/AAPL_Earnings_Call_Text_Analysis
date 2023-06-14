@@ -1,0 +1,176 @@
+---
+title: "Political Text Analysis"
+author: "Huang Lin, Chun"
+date: "2023-05-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pdf.options(encoding = 'CP1250')
+```
+
+```{r, results='hide'}
+Sys.setlocale("LC_ALL", 'en_GB.UTF-8')
+Sys.setenv(LANG = "en_GB.UTF-8")
+getwd()
+library(tidyverse)
+library(readtext)
+library(quanteda)
+library(quanteda.textstats)
+library(quanteda.textplots)
+```
+# Check the files in our target folder.
+```{r, results='hide'}
+list.files(path = './transcripts')
+```
+# Import each file into R
+```{r}
+earn.call <- readtext("./transcripts/*.txt",                 
+                      docvarsfrom = "filenames",
+                      dvsep = "_",
+                      docvarnames = c("name", "year", "quarter", "date"))
+earn.call
+```
+# Turn the dataframe into Corpus
+```{r, results = 'hide'}
+earn.call.corpus <- corpus(earn.call)
+summary(earn.call.corpus, n = 10)
+```
+# Tokenize the data
+```{r}
+earn.call_tokens <- tokens(earn.call.corpus,
+                      remove_punct = TRUE,
+                      remove_symbols = TRUE,
+                      remove_numbers = TRUE,
+                      remove_separators = TRUE)
+head(earn.call_tokens, n = 3)
+```
+# Clean up stopwords and lemmatization
+```{r, results='hide'}
+earn.call_tokens <- tokens_remove(earn.call_tokens, 
+                            stopwords(language = "en", source = "marimo"))
+earn.call_tokens <- tokens_wordstem(earn.call_tokens, language = 'en')
+head(earn.call_tokens, n = 3)
+```
+
+
+# Turn the big corpus into Document Feature Matrix
+```{r, results='hide'}
+earn.call.dfm <- dfm(earn.call_tokens)
+earn.call.dfm
+```
+```{r}
+# Top features
+topfeatures(earn.call.dfm, 20)
+```
+# Trimming the DFM
+```{r, results = 'hide'}
+earn.call.dfm <- dfm_trim(earn.call.dfm, min_termfreq = 10, min_docfreq = 1)
+topfeatures(earn.call.dfm, 20)
+```
+# Keyness (Take 2023 and 2022 as examples)
+## keyness of 2023
+
+
+```{r, fig.height=6.5, fig.widgh=30}
+year_data <- dfm_group(earn.call.dfm, group = year)
+keyness.2023 <- textstat_keyness(year_data, target = '2023')
+keyness.2023 <- keyness.2023[ which(keyness.2023$p<=0.05), ]
+textplot_keyness(keyness.2023)+ theme(legend.position = "top")
+
+```
+
+## keyness of 2022
+
+```{r, fig.height=6.5, out.widgh='80%'}
+year_data <- dfm_group(earn.call.dfm, group = year)
+keyness.2022 <- textstat_keyness(year_data, target = '2022')
+keyness.2022 <- keyness.2022[ which(keyness.2022$p<=0.05), ]
+textplot_keyness(keyness.2022) + theme(legend.position = "top")
+
+```
+
+
+## Event Study
+# Use CAPM to Calculate the Abnormal Return
+```{r}
+variables = docvars(earn.call.corpus)
+variables = variables[, -1]
+colnames(variables)
+
+# The market is expected to respond after the date of earnings call
+# (Because often, the earnings calls are held after the close time of stock market.)
+variables$date = as.Date(variables$date) + 1
+variables
+```
+```{r message=FALSE, warning=FALSE, results='hide'}
+library('zoo')
+library('xts')
+library('TTR')
+library('quantmod')
+library('dplyr')
+```
+
+```{r}
+
+# Get the stock price of Apple Inc.
+getSymbols("AAPL", from = '2013-01-01', to = '2023-04-28')
+# We only need the close price
+AAPL = AAPL$AAPL.Close
+
+# Calculate the daily return
+returns <- (diff(AAPL) / lag(AAPL, 1))*100
+colnames(returns) <- c('AAPL.Ret')
+
+# Import the data set of RM-RF data and RF(risk free return)
+# Data Source: 
+# http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html#Research
+MKT <- read.csv('Market_return_data/F-F_Research_Data_Factors_daily2.csv')
+MKT$X = as.Date(MKT$X, format = "%Y%m%d")
+
+# started by 2013 because chose only earnings call transcripts from 2013 Q1
+MKT = MKT[MKT$X >= as.Date('2013-01-01'),]
+MKT = MKT[MKT$X <= as.Date('2023-04-28'),]
+
+# Because the last three rows are NA, so delete
+last_three = (nrow(MKT) - 2):nrow(MKT)
+MKT = MKT[-last_three,]
+
+# Combine the two dataframe
+AAPL_MKT = bind_cols(MKT,returns)
+
+# Calculate the excess return of AAPL (Return - Risk Free)
+AAPL_MKT$excess.return = AAPL_MKT$AAPL.Ret - AAPL_MKT$RF
+
+head(AAPL_MKT, n = 5)
+```
+```{r}
+# Run the regression of AAPL excess return on Market excess return
+# to get the beta of Apple stock
+model <- lm(AAPL_MKT$excess.return ~ AAPL_MKT$Mkt.RF)
+beta <- coef(model)[2]
+beta
+
+# According to CAMP, the normal (expected) return is given by RF + beta*(RM - RF)
+AAPL_MKT$normal.return = AAPL_MKT$RF + beta * AAPL_MKT$Mkt.RF
+AAPL_MKT$abnormal.return = AAPL_MKT$AAPL.Ret - AAPL_MKT$normal.return
+
+# Generate a dummy to check whether the day is after any earnings call
+AAPL_MKT$After.call = ifelse(AAPL_MKT$X %in% variables$date, 1, 0)
+
+# Run the regression of abnormal return on the dummy variable
+summary(lm(AAPL_MKT$abnormal.return ~ AAPL_MKT$After.call))
+
+```
+
+
+
+
+
+
+
+
+
+
+
