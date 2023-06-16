@@ -1,16 +1,20 @@
 ---
-title: "Political Text Analysis"
-author: "Huang Lin, Chun"
-date: "2023-05-26"
+title: "Apple Earnings Call Transcripts Text Analysis"
+author: "Huang Lin, Chun 1A233902-6"
+date: "Political Text Analysis"
 output: pdf_document
 ---
+
+# Research Motivation
+
+When considering project topic, I tried to find a good text source with periodical update and associated with economic environment. After topics searching, I decided to analyze the transcripts of Apple's Earnings Call. Apple held earnings call four times a year and often launched new products with each earnings call. Therefore, I feel it is a good theme to analyze the expression across time, the keyness, the emotion index and its impact on the stock price (AAPL).
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 pdf.options(encoding = 'CP1250')
 ```
 
-```{r, results='hide'}
+```{r message=FALSE, warning=FALSE, results='hide'}
 Sys.setlocale("LC_ALL", 'en_GB.UTF-8')
 Sys.setenv(LANG = "en_GB.UTF-8")
 getwd()
@@ -19,61 +23,65 @@ library(readtext)
 library(quanteda)
 library(quanteda.textstats)
 library(quanteda.textplots)
+library(quanteda.textmodels)
+library(topicmodels)
 ```
+
 # Check the files in our target folder.
+
 ```{r, results='hide'}
 list.files(path = './transcripts')
 ```
+
 # Import each file into R
+
 ```{r}
 earn.call <- readtext("./transcripts/*.txt",                 
                       docvarsfrom = "filenames",
                       dvsep = "_",
                       docvarnames = c("name", "year", "quarter", "date"))
-earn.call
+earn.call$text <- gsub("'", " ", earn.call$text)
+earn.call$text <- gsub("'", " ", earn.call$text)
 ```
-# Turn the dataframe into Corpus
+
+# Data Preprocessing
+
 ```{r, results = 'hide'}
-earn.call.corpus <- corpus(earn.call)
-summary(earn.call.corpus, n = 10)
-```
-# Tokenize the data
-```{r}
-earn.call_tokens <- tokens(earn.call.corpus,
-                      remove_punct = TRUE,
-                      remove_symbols = TRUE,
-                      remove_numbers = TRUE,
-                      remove_separators = TRUE)
-head(earn.call_tokens, n = 3)
-```
-# Clean up stopwords and lemmatization
-```{r, results='hide'}
-earn.call_tokens <- tokens_remove(earn.call_tokens, 
-                            stopwords(language = "en", source = "marimo"))
-earn.call_tokens <- tokens_wordstem(earn.call_tokens, language = 'en')
-head(earn.call_tokens, n = 3)
+earn.call.corpus <- earn.call %>%
+  
+  # Turn earn.call data into corpus
+  corpus() %>%
+  
+  # Remove punctuation, symbols, numbers, separators, and stopwords
+  tokens(remove_punct = TRUE, 
+         remove_symbols = TRUE, 
+         remove_numbers = TRUE, 
+         remove_separators = TRUE) %>%
+  tokens_remove(stopwords(language = "en")) %>%
+  
+  # lemmatization
+  tokens_wordstem(language = "en") 
+  
+# Turn them to DFM
+earn.call.dfm <- earn.call.corpus %>%
+  dfm() %>%
+  dfm_remove(min_nchar=2)
 ```
 
-
-# Turn the big corpus into Document Feature Matrix
-```{r, results='hide'}
-earn.call.dfm <- dfm(earn.call_tokens)
-earn.call.dfm
-```
-```{r}
-# Top features
-topfeatures(earn.call.dfm, 20)
-```
 # Trimming the DFM
-```{r, results = 'hide'}
+
+```{r}
 earn.call.dfm <- dfm_trim(earn.call.dfm, min_termfreq = 10, min_docfreq = 1)
 topfeatures(earn.call.dfm, 20)
 ```
-# Keyness (Take 2023 and 2022 as examples)
+
+\newpage
+
+# Keyness (2023 - 2021)
+
 ## keyness of 2023
 
-
-```{r, fig.height=6.5, fig.widgh=30}
+```{r fig.height=8, fig.width=10}
 year_data <- dfm_group(earn.call.dfm, group = year)
 keyness.2023 <- textstat_keyness(year_data, target = '2023')
 keyness.2023 <- keyness.2023[ which(keyness.2023$p<=0.05), ]
@@ -81,9 +89,21 @@ textplot_keyness(keyness.2023)+ theme(legend.position = "top")
 
 ```
 
+In 2023, the significantly mentioned word is "macroeconom", which can be inferred that Apple's profits are affected by the macroecnomics environment magnificently. Associated with the word "challenging" and "environment", we can infer that Apple faced challenge owing to macroeconomics environment. In fact, Tim Cook pointed out that the overall macroeconomic environment reduces the profits in both 2023 Q1 and Q2.
+
+-   <https://www.cnbc.com/2023/02/02/apple-aapl-earnings-q1-2023.html>
+-   <https://tidbits.com/2023/05/05/apples-q2-2023-slightly-down-on-exchange-rates-and-macroeconomic-conditions/>
+
+In addition, "india" was also mentioned a lot this year, which can be attributed to the fact that Indian population exceeded that of China in 2023 April. Apple mentioned that probably because they are planning to move their supply chains from China to India and increase the businesses in India.
+
+-   <https://www.cnbc.com/2023/04/18/why-india-is-so-important-to-apple.html>
+-   <https://finance.yahoo.com/news/the-simple-reason-tech-thinks-india-is-its-next-big-market-200003052.html>
+
+"m2" is mentioned probably because Apple developed new type of chip (m2) and put emphasis on this new technology.
+
 ## keyness of 2022
 
-```{r, fig.height=6.5, out.widgh='80%'}
+```{r, fig.height=8, fig.width=10}
 year_data <- dfm_group(earn.call.dfm, group = year)
 keyness.2022 <- textstat_keyness(year_data, target = '2022')
 keyness.2022 <- keyness.2022[ which(keyness.2022$p<=0.05), ]
@@ -91,19 +111,90 @@ textplot_keyness(keyness.2022) + theme(legend.position = "top")
 
 ```
 
+In 2022, "constraint", "supply", "silicon", and "inflation" were the four most mentioned words. This year, the widespread Covid-19 omicron virus outbreak in Shanghai from February to August caused the strict lockdown in China. This implementation led to the disruption of supply chains of a wide range of businesses, and Apple is not the exception. The pandemic curtailed the productivity of chip and silicon, which caused the shortage on the materials for production. \newpage
 
-## Event Study
-# Use CAPM to Calculate the Abnormal Return
-```{r}
-variables = docvars(earn.call.corpus)
-variables = variables[, -1]
-colnames(variables)
+## keyness of 2021
 
-# The market is expected to respond after the date of earnings call
-# (Because often, the earnings calls are held after the close time of stock market.)
-variables$date = as.Date(variables$date) + 1
-variables
+```{r, fig.height=8, fig.width=10}
+year_data <- dfm_group(earn.call.dfm, group = year)
+keyness.2021 <- textstat_keyness(year_data, target = '2021')
+keyness.2021 <- keyness.2021[ which(keyness.2021$p<=0.05), ]
+textplot_keyness(keyness.2021) + theme(legend.position = "top")
+
 ```
+
+In 2021, "5g" became the most mentioned word in the earnings call.
+
+"Constraint", "pandemic", "supply", and "covid" were mentioned a lot, which shows the Covid-19 impact on Apple supply chains.
+
+\newpage
+
+# Sentiment Analysis
+
+To understand the difference across year and quarter, we conducted the sentiment analysis for the transcript each year.
+
+```{r}
+earning.sentiment <- earn.call.dfm %>%
+  dfm_lookup(dictionary = data_dictionary_LSD2015[1:2]) %>%
+  dfm_weight(scheme = "prop") %>%
+  convert("data.frame") 
+```
+
+```{r}
+earning.sentiment$xlabel = paste(earn.call$year, earn.call$quarter)
+
+earning.sentiment %>%
+  pivot_longer(negative:positive, names_to = "Sentiment", values_to = "Proportion") %>%
+  ggplot(aes(xlabel, Proportion, group = Sentiment, fill = Sentiment)) +
+  geom_bar(stat = 'identity') +
+  scale_colour_brewer(palette = "Set1") + scale_fill_brewer(palette = 1) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0)) + 
+  xlab("Apple Earnings Call") + 
+  ylab("Sentiment Proportion [%]") +
+  scale_x_discrete(
+    breaks = 
+      unique(earning.sentiment$
+               xlabel[seq(1, length(unique(earning.sentiment$xlabel)), by = 3)])) 
+```
+
+We can see that there is no significant volatility in the proportion of positive and negative words across time. However, the positive word proportion is relatively low after 2020 quarter 3.
+
+```{r}
+# Sentiment Index (positive proportion - negative proportion)
+earning.sentiment$emotion <- earning.sentiment$positive -  
+  earning.sentiment$negative
+ggplot(earning.sentiment, mapping = aes(x = xlabel, y = emotion, group = 1)) + 
+  geom_point(colour = 'blue') + geom_line(colour = 'blue') + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size = 10), 
+        plot.title = element_text(hjust = 0.5)) + 
+  labs(x = "Apple Earnings Call", y = 'sentiment index', 
+       title = "Sentiment Index (Pos-Prop - Neg-Prop)") + 
+  scale_x_discrete(breaks = unique(earning.sentiment$xlabel[seq(1,length(unique(earning.sentiment$xlabel)), by = 3)])) 
+  
+```
+
+By defining the sentiment index by subtracting negative proportion from positive proportion, we can see that the sentiment index in the transcripts has a systematic decrease after 2020 Q3. Most points are above 0.7 before 2020 Q3, yet sentiment indexes after 2020 Q3 were lower than 0.7. This could be explained by the higher tendency to speak negative words as the result of tight supply under Covid-19.
+
+\newpage
+
+## Sentiment and AAPL stock price
+
+We then further investigated if the sentiment index influenced Apple stock price. To answer this question, we cannot use Apple's stock price directly, as the stock price is affected by a series of variables, including the market stock price, economic indexes, and media emotion.
+
+We apply Capital Asset Pricing Model (CAPM) to calculate the expected return of Apple, and subtract the expected return from the actual return to obtain the abnormal return. Lastly, we fit the linear regression model of abnormal return on the sentiment index to check whether Tim Cook's word emotion generates abnormal return on stock.
+
+$$ER_{AAPL}=R_f +\beta_{AAPL}(ER_m-R_f)$$
+
+The above equation shows the calculation of expected return for Apple stock.
+
+We download the market return ($ER_m$) and risk free rate ($R_f$) from the following link:
+
+-   <http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html#Research>
+
+Then, we regress Apple stock excess return ($R_{AAPL}-R_f$) on market risk free rate ($ER_m - R_f$) to get $\beta_{AAPL}.$
+
 ```{r message=FALSE, warning=FALSE, results='hide'}
 library('zoo')
 library('xts')
@@ -112,14 +203,15 @@ library('quantmod')
 library('dplyr')
 ```
 
-```{r}
+```{r ,results='hide'}
 
-# Get the stock price of Apple Inc.
+# Get the stock price of Apple Inc. We only need the close price.
+# (The market rate data was only collected until 2023-04-28 so we chose this 
+# as the end date)
 getSymbols("AAPL", from = '2013-01-01', to = '2023-04-28')
-# We only need the close price
 AAPL = AAPL$AAPL.Close
 
-# Calculate the daily return
+# Calculate the daily (actual) return
 returns <- (diff(AAPL) / lag(AAPL, 1))*100
 colnames(returns) <- c('AAPL.Ret')
 
@@ -127,50 +219,89 @@ colnames(returns) <- c('AAPL.Ret')
 # Data Source: 
 # http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html#Research
 MKT <- read.csv('Market_return_data/F-F_Research_Data_Factors_daily2.csv')
-MKT$X = as.Date(MKT$X, format = "%Y%m%d")
+MKT$X <- as.Date(MKT$X, format = "%Y%m%d")
 
-# started by 2013 because chose only earnings call transcripts from 2013 Q1
-MKT = MKT[MKT$X >= as.Date('2013-01-01'),]
-MKT = MKT[MKT$X <= as.Date('2023-04-28'),]
+# started by 2013 because we only chose earnings call transcripts from 2013 Q1
+MKT <- MKT[MKT$X >= as.Date('2013-01-01'),]
+MKT <- MKT[MKT$X <= as.Date('2023-04-28'),]
 
 # Because the last three rows are NA, so delete
 last_three = (nrow(MKT) - 2):nrow(MKT)
-MKT = MKT[-last_three,]
+MKT <- MKT[-last_three,]
 
 # Combine the two dataframe
-AAPL_MKT = bind_cols(MKT,returns)
+AAPL_MKT <- bind_cols(MKT,returns)
 
 # Calculate the excess return of AAPL (Return - Risk Free)
-AAPL_MKT$excess.return = AAPL_MKT$AAPL.Ret - AAPL_MKT$RF
-
-head(AAPL_MKT, n = 5)
+AAPL_MKT$excess.return <- AAPL_MKT$AAPL.Ret - AAPL_MKT$RF
 ```
+
 ```{r}
 # Run the regression of AAPL excess return on Market excess return
 # to get the beta of Apple stock
 model <- lm(AAPL_MKT$excess.return ~ AAPL_MKT$Mkt.RF)
 beta <- coef(model)[2]
 beta
-
-# According to CAMP, the normal (expected) return is given by RF + beta*(RM - RF)
-AAPL_MKT$normal.return = AAPL_MKT$RF + beta * AAPL_MKT$Mkt.RF
-AAPL_MKT$abnormal.return = AAPL_MKT$AAPL.Ret - AAPL_MKT$normal.return
-
-# Generate a dummy to check whether the day is after any earnings call
-AAPL_MKT$After.call = ifelse(AAPL_MKT$X %in% variables$date, 1, 0)
-
-# Run the regression of abnormal return on the dummy variable
-summary(lm(AAPL_MKT$abnormal.return ~ AAPL_MKT$After.call))
-
 ```
 
+```{r}
+# According to CAMP, the normal (expected) return is given by RF + beta*(RM - RF)
+AAPL_MKT$normal.return = AAPL_MKT$RF + beta * AAPL_MKT$Mkt.RF
+
+# Abnormal return is calculated by Actual Return - Normal Return
+AAPL_MKT$abnormal.return = AAPL_MKT$AAPL.Ret - AAPL_MKT$normal.return
+```
+
+We finally calculated the abnormal return and we can regress it on the sentiment index.
+
+```{r}
+# variables: to store the date variables of each earnings call
+variables = attr(earn.call.dfm, 'docvars')
+variables = variables[, -c(1:4)]
+colnames(variables)
+
+# The market is expected to respond after the date of earnings call
+# (Because often, the earnings calls are held after the close time of stock market.)
+variables$date = as.Date(variables$date) + 1
+
+# Add the date after the earnings call to sentiment data for stock price analysis
+earning.sentiment$date.after <- variables$date
+
+# Define the emotion index as the difference between positive and negative
+# proportion of a text
+earning.sentiment$emotion <- earning.sentiment$positive -  
+  earning.sentiment$negative
+
+# Fill in the abnormal return data on each earnings call date.
+
+for (i in 1:42){
+  if (earning.sentiment$date.after[i] %in% AAPL_MKT$X){
+    earning.sentiment$abnormal.return[i] <- 
+      AAPL_MKT$abnormal.return[AAPL_MKT$X == earning.sentiment$date.after[i]]
+  }
+  else{
+    earning.sentiment$abnormal.return[i] <- NA
+  }
+}
 
 
+head(earning.sentiment, 5)
+```
 
+```{r}
+# Regress abnormal return on sentiment index.
+emotional.regression <- lm(earning.sentiment$abnormal.return ~ earning.sentiment$emotion)
+summary(emotional.regression)
+```
 
+According to the regression table, Tim Cook's speaking emotion has no significant impact on the Apple abnormal return, as the p value ($Pr(>|t|)$) is greater than 0.05.
 
+In addition, the Multiple R-squared is only 0.01457, which means that the model has extremely restricted ability to explain the relationship between independent variables and dependent variable. This might be caused by omitted variable bias. For instance, media's prospective toward the new launched products might have significant impact on the abnormal return, but we did not put it into our model.
 
+\newpage
 
+### References
 
-
-
+-   <https://www.youtube.com/watch?v=ucKK528ApCw>
+-   <https://www.youtube.com/watch?v=PFMCx7TDBr4>
+-   <http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html#Research>
