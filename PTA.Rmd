@@ -1,5 +1,5 @@
 ---
-title: "Apple Earnings Call Transcripts Text Analysis"
+title: "Apple Earnings Call Transcripts Text Analysis:\n\nSentiment Analysis and Stock Price"
 author: "Huang Lin, Chun 1A233902-6"
 date: "Political Text Analysis"
 output: pdf_document
@@ -25,6 +25,7 @@ library(quanteda.textstats)
 library(quanteda.textplots)
 library(quanteda.textmodels)
 library(topicmodels)
+if(!require("keyATM")) {install.packages("keyATM"); library(keyATM)}
 ```
 
 # Check the files in our target folder.
@@ -165,13 +166,15 @@ We can see that there is no significant volatility in the proportion of positive
 earning.sentiment$emotion <- earning.sentiment$positive -  
   earning.sentiment$negative
 ggplot(earning.sentiment, mapping = aes(x = xlabel, y = emotion, group = 1)) + 
-  geom_point(colour = 'blue') + geom_line(colour = 'blue') + 
+   geom_line(colour = '003366') + 
   theme_minimal() +
   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size = 10), 
         plot.title = element_text(hjust = 0.5)) + 
   labs(x = "Apple Earnings Call", y = 'sentiment index', 
-       title = "Sentiment Index (Pos-Prop - Neg-Prop)") + 
-  scale_x_discrete(breaks = unique(earning.sentiment$xlabel[seq(1,length(unique(earning.sentiment$xlabel)), by = 3)])) 
+       title = "Sentiment Index \n (Positive - Negative)") + 
+  scale_x_discrete(breaks = unique(earning.sentiment$xlabel[seq(1,length(unique(earning.sentiment$xlabel)), by = 3)])) +
+  geom_hline(yintercept = 0.7, linetype = "dashed", color = 'orange', size = 0.3) + 
+  geom_vline(xintercept = 31, linetype = "dashed", color = 'red', size = 0.3)
   
 ```
 
@@ -293,10 +296,30 @@ head(earning.sentiment, 5)
 emotional.regression <- lm(earning.sentiment$abnormal.return ~ earning.sentiment$emotion)
 summary(emotional.regression)
 ```
+```{r warning=FALSE}
+library(ggplot2)
+library(ggpmisc)
+
+earning.sentiment$year = earn.call$year
+earning.sentiment$year = ifelse(earn.call$year <= 2018, "<= 2018", "> 2018")
+
+ggplot(earning.sentiment, aes(x = emotion, y = abnormal.return)) + 
+  geom_point(aes(color = year)) + geom_smooth(method = 'lm', formula = y ~ x) + 
+  stat_poly_eq(aes(label = paste(..eq.label.., 
+                                 ..adj.rr.label.., 
+                                 sep = '~~~~')), 
+               formula = y ~ x) + 
+  labs(title = "Apple Earnings Call Emotion with Stock Price", 
+       x = "Emotion", 
+       y = "Abnormal Return") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
 
 According to the regression table, Tim Cook's speaking emotion has no significant impact on the Apple abnormal return, as the p value ($Pr(>|t|)$) is greater than 0.05.
 
-In addition, the Multiple R-squared is only 0.01457, which means that the model has extremely restricted ability to explain the relationship between independent variables and dependent variable. This might be caused by omitted variable bias. For instance, media's prospective toward the new launched products might have significant impact on the abnormal return, but we did not put it into our model.
+In addition, the Multiple R-squared is only 0.01457, which means that the model has extremely restricted ability to explain the relationship between independent variables and dependent variable. This might be caused by omitted variable bias. For instance, media's prospective toward the new launched products might have significant impact on the abnormal return, but we did not put it into our model. 
+
+In addition, we can see that the abnormal return sample variance is larger after 2018 than that before 2018. 
 
 \newpage
 
